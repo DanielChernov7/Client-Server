@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bussipeatused - Estonia Bus Stops</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- jQuery UI CSS (for autocomplete) -->
+    <link href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css" rel="stylesheet">
+
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link href="styles.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container py-4">
+        <!-- Header -->
+        <header class="mb-4">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <h1 class="h3 mb-1">
+                        <i class="bi bi-bus-front me-2"></i>Bussipeatused
+                    </h1>
+                    <p class="text-muted mb-0">Estonia Bus Stops & Arrivals</p>
+                </div>
+                <button id="btnClear" class="btn btn-outline-secondary" title="Tühjenda kõik">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Tühjenda
+                </button>
+            </div>
+        </header>
+
+        <!-- Location Status -->
+        <div id="locationStatus" class="alert alert-info d-none mb-3">
+            <i class="bi bi-geo-alt me-2"></i>
+            <span id="locationText">Asukoha tuvastamine...</span>
+        </div>
+
+        <!-- Main Content -->
+        <div class="row g-4">
+            <!-- Left Column: Selection -->
+            <div class="col-lg-6">
+                <!-- Region Selection Card -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <i class="bi bi-geo me-2"></i>1. Vali piirkond
+                    </div>
+                    <div class="card-body">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text"
+                                   id="regionInput"
+                                   class="form-control"
+                                   placeholder="Sisesta või vali piirkond..."
+                                   autocomplete="off">
+                            <button id="btnLoadStops" class="btn btn-primary" disabled>
+                                <i class="bi bi-arrow-right me-1"></i>Laadi peatused
+                            </button>
+                        </div>
+                        <small class="text-muted mt-1 d-block">
+                            Alusta tippimist piirkonna valimiseks
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Stop Selection Card -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <i class="bi bi-sign-stop me-2"></i>2. Vali peatus
+                    </div>
+                    <div class="card-body">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text"
+                                   id="stopInput"
+                                   class="form-control"
+                                   placeholder="Vali esmalt piirkond..."
+                                   autocomplete="off"
+                                   disabled>
+                            <button id="btnLoadBuses" class="btn btn-primary" disabled>
+                                <i class="bi bi-arrow-right me-1"></i>Laadi bussid
+                            </button>
+                        </div>
+                        <div id="stopInfo" class="mt-2 d-none">
+                            <small class="text-muted">
+                                <span id="stopCode"></span> |
+                                <span id="stopCoords"></span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Buses Card -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-bus-front me-2"></i>3. Vali buss</span>
+                        <span id="busCount" class="badge bg-secondary d-none">0</span>
+                    </div>
+                    <div class="card-body">
+                        <div id="busesLoading" class="text-center py-3 d-none">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Laadimine...</span>
+                            </div>
+                            <span class="ms-2">Busside laadimine...</span>
+                        </div>
+                        <div id="busesEmpty" class="text-muted text-center py-3">
+                            Vali peatus busside nägemiseks
+                        </div>
+                        <div id="busesContainer" class="d-none">
+                            <div id="busesList" class="d-flex flex-wrap gap-2">
+                                <!-- Bus buttons will be inserted here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Arrivals -->
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <i class="bi bi-clock me-2"></i>Saabumisajad
+                    </div>
+                    <div class="card-body">
+                        <div id="arrivalsLoading" class="text-center py-5 d-none">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Laadimine...</span>
+                            </div>
+                            <p class="mt-2 mb-0">Saabumisaegade laadimine...</p>
+                        </div>
+                        <div id="arrivalsEmpty" class="text-center py-5 text-muted">
+                            <i class="bi bi-clock-history display-4 mb-3 d-block"></i>
+                            <p class="mb-0">Vali buss saabumisaegade nägemiseks</p>
+                        </div>
+                        <div id="arrivalsContainer" class="d-none">
+                            <div id="arrivalsHeader" class="mb-3 pb-2 border-bottom">
+                                <h5 class="mb-1">
+                                    <span class="badge bg-primary me-2" id="selectedRoute"></span>
+                                    <span id="selectedStopName"></span>
+                                </h5>
+                                <small class="text-muted" id="arrivalsInfo"></small>
+                            </div>
+                            <div id="arrivalsList">
+                                <!-- Arrivals will be inserted here -->
+                            </div>
+                            <div id="noArrivals" class="text-center py-4 text-muted d-none">
+                                <i class="bi bi-calendar-x display-4 mb-3 d-block"></i>
+                                <p class="mb-0">Saabumisi ei leitud</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="mt-4 pt-3 border-top text-center text-muted">
+            <small>
+                Andmed: <a href="https://peatus.ee" target="_blank">peatus.ee</a> GTFS |
+                <span id="serverTime"></span>
+            </small>
+        </footer>
+    </div>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+    <!-- jQuery UI (for autocomplete) -->
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- App JS -->
+    <script src="app.js"></script>
+</body>
+</html>

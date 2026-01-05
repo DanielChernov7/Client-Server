@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Environment files (contain secrets)
+.env
+*.env.local
+
+# Temporary files
+server/temp/
+*.tmp
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build outputs
+dist/
+build/
