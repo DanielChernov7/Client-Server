@@ -22,7 +22,7 @@ const CHUNK_SIZE = 1000; // Rows per bulk insert
  * @param {string} dest - Destination path
  * @returns {Promise<void>}
  */
-async function downloadFile(url, dest) {
+async function downloadFile(url, dest, baseUrl = null) {
     return new Promise((resolve, reject) => {
         console.log(`Downloading from ${url}...`);
         const file = fs.createWriteStream(dest);
@@ -32,8 +32,14 @@ async function downloadFile(url, dest) {
             if (response.statusCode === 301 || response.statusCode === 302) {
                 // Follow redirect
                 file.close();
-                fs.unlinkSync(dest);
-                downloadFile(response.headers.location, dest).then(resolve).catch(reject);
+                try { fs.unlinkSync(dest); } catch(e) {}
+                let redirectUrl = response.headers.location;
+                // Handle relative redirects
+                if (redirectUrl.startsWith('/')) {
+                    const urlObj = new URL(url);
+                    redirectUrl = `${urlObj.protocol}//${urlObj.host}${redirectUrl}`;
+                }
+                downloadFile(redirectUrl, dest).then(resolve).catch(reject);
                 return;
             }
 

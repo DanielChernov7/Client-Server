@@ -2,7 +2,7 @@
 node_modules/
 
 # Environment files (contain secrets)
-.env
+server/.env
 *.env.local
 
 # Temporary files
