@@ -5,7 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { query, table } = require('../db');
+const tallinnApi = require('../tallinnApi');
 
 /**
  * GET /api/stops
@@ -24,28 +24,25 @@ router.get('/', async (req, res) => {
             });
         }
 
-        const sql = `
-            SELECT
-                stop_id,
-                stop_code,
-                stop_name,
-                stop_desc,
-                stop_lat,
-                stop_lon,
-                zone_id,
-                region
-            FROM ${table('stops')}
-            WHERE region = ?
-            ORDER BY stop_name ASC
-        `;
+        const stops = await tallinnApi.getStopsByRegion(region);
 
-        const rows = await query(sql, [region]);
+        // Transform to match expected format
+        const data = stops.map(s => ({
+            stop_id: s.stopIds[0] || s.id,
+            stop_code: s.id,
+            stop_name: s.name,
+            stop_desc: s.area,
+            stop_lat: s.lat,
+            stop_lon: s.lng,
+            zone_id: s.city,
+            region: s.area
+        }));
 
         res.json({
             success: true,
             region: region,
-            count: rows.length,
-            data: rows
+            count: data.length,
+            data: data
         });
     } catch (error) {
         console.error('Error fetching stops:', error);
@@ -63,24 +60,10 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
     try {
         const { id } = req.params;
+        const stops = await tallinnApi.getStops();
+        const stop = stops.find(s => s.id === id || s.stopIds.includes(id));
 
-        const sql = `
-            SELECT
-                stop_id,
-                stop_code,
-                stop_name,
-                stop_desc,
-                stop_lat,
-                stop_lon,
-                zone_id,
-                region
-            FROM ${table('stops')}
-            WHERE stop_id = ?
-        `;
-
-        const rows = await query(sql, [id]);
-
-        if (rows.length === 0) {
+        if (!stop) {
             return res.status(404).json({
                 success: false,
                 error: 'Stop not found'
@@ -89,7 +72,16 @@ router.get('/:id', async (req, res) => {
 
         res.json({
             success: true,
-            data: rows[0]
+            data: {
+                stop_id: stop.stopIds[0] || stop.id,
+                stop_code: stop.id,
+                stop_name: stop.name,
+                stop_desc: stop.area,
+                stop_lat: stop.lat,
+                stop_lon: stop.lng,
+                zone_id: stop.city,
+                region: stop.area
+            }
         });
     } catch (error) {
         console.error('Error fetching stop:', error);

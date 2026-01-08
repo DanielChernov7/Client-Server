@@ -5,7 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { query, table } = require('../db');
+const tallinnApi = require('../tallinnApi');
 
 /**
  * GET /api/regions
@@ -13,17 +13,7 @@ const { query, table } = require('../db');
  */
 router.get('/', async (req, res) => {
     try {
-        const sql = `
-            SELECT DISTINCT region
-            FROM ${table('stops')}
-            WHERE region IS NOT NULL
-              AND region != ''
-              AND region != 'Unknown'
-            ORDER BY region ASC
-        `;
-
-        const rows = await query(sql);
-        const regions = rows.map(row => row.region);
+        const regions = await tallinnApi.getRegions();
 
         res.json({
             success: true,

@@ -1,14 +1,12 @@
 /**
- * Bus Stops Server
- * Main Express server for Estonia GTFS bus stops and arrivals
+ * Tallinn Bus Stops Server
+ * Express server using transport.tallinn.ee API
  */
 
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
-
-const { testConnection } = require('./src/db');
 
 // Import routes
 const regionsRouter = require('./src/routes/regions');
@@ -36,10 +34,9 @@ app.use('/api/arrivals', arrivalsRouter);
 
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
-    const dbConnected = await testConnection();
     res.json({
-        status: dbConnected ? 'healthy' : 'unhealthy',
-        database: dbConnected ? 'connected' : 'disconnected',
+        status: 'healthy',
+        source: 'transport.tallinn.ee',
         timestamp: new Date().toISOString()
     });
 });
@@ -69,20 +66,9 @@ app.use((err, req, res, next) => {
 // Start server
 async function start() {
     console.log('========================================');
-    console.log('Bus Stops Server');
+    console.log('Tallinn Bus Stops Server');
+    console.log('Using transport.tallinn.ee API');
     console.log('========================================');
-
-    // Test database connection
-    console.log('\nTesting database connection...');
-    const dbConnected = await testConnection();
-
-    if (dbConnected) {
-        console.log('Database connection successful.');
-    } else {
-        console.warn('WARNING: Database connection failed!');
-        console.warn('Server will start but API calls may fail.');
-        console.warn('Check your .env configuration and database access.');
-    }
 
     app.listen(PORT, () => {
         console.log(`\nServer running on http://localhost:${PORT}`);

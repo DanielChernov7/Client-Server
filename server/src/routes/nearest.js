@@ -5,14 +5,14 @@
 
 const express = require('express');
 const router = express.Router();
-const { query, table } = require('../db');
+const tallinnApi = require('../tallinnApi');
 
 /**
  * GET /api/nearest
  * Query params:
  *   - lat: Latitude (required)
  *   - lon: Longitude (required)
- * Returns nearest stop with region info using Haversine formula
+ * Returns nearest stop with region info
  */
 router.get('/', async (req, res) => {
     try {
@@ -43,48 +43,14 @@ router.get('/', async (req, res) => {
             });
         }
 
-        // Use Haversine formula to find nearest stop
-        // This calculates distance in kilometers
-        const sql = `
-            SELECT
-                stop_id,
-                stop_code,
-                stop_name,
-                stop_desc,
-                stop_lat,
-                stop_lon,
-                zone_id,
-                region,
-                (
-                    6371 * ACOS(
-                        LEAST(1, GREATEST(-1,
-                            COS(RADIANS(?)) *
-                            COS(RADIANS(stop_lat)) *
-                            COS(RADIANS(stop_lon) - RADIANS(?)) +
-                            SIN(RADIANS(?)) *
-                            SIN(RADIANS(stop_lat))
-                        ))
-                    )
-                ) AS distance_km
-            FROM ${table('stops')}
-            WHERE stop_lat IS NOT NULL
-              AND stop_lon IS NOT NULL
-              AND stop_lat != 0
-              AND stop_lon != 0
-            ORDER BY distance_km ASC
-            LIMIT 1
-        `;
+        const nearest = await tallinnApi.findNearestStop(latitude, longitude);
 
-        const rows = await query(sql, [latitude, longitude, latitude]);
-
-        if (rows.length === 0) {
+        if (!nearest) {
             return res.status(404).json({
                 success: false,
                 error: 'No stops found'
             });
         }
-
-        const nearest = rows[0];
 
         res.json({
             success: true,
@@ -93,15 +59,15 @@ router.get('/', async (req, res) => {
                 lon: longitude
             },
             data: {
-                stop_id: nearest.stop_id,
-                stop_code: nearest.stop_code,
-                stop_name: nearest.stop_name,
-                stop_desc: nearest.stop_desc,
-                stop_lat: parseFloat(nearest.stop_lat),
-                stop_lon: parseFloat(nearest.stop_lon),
-                zone_id: nearest.zone_id,
-                region: nearest.region,
-                distance_km: Math.round(nearest.distance_km * 1000) / 1000
+                stop_id: nearest.stopIds[0] || nearest.id,
+                stop_code: nearest.id,
+                stop_name: nearest.name,
+                stop_desc: nearest.area,
+                stop_lat: nearest.lat,
+                stop_lon: nearest.lng,
+                zone_id: nearest.city,
+                region: nearest.area,
+                distance_km: nearest.distance_km
             }
         });
     } catch (error) {

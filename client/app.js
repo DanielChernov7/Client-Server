@@ -159,7 +159,10 @@
                 stop: stop
             }));
 
-            elements.stopInput.autocomplete('destroy');
+            // Destroy existing autocomplete if initialized
+            if (elements.stopInput.data('ui-autocomplete')) {
+                elements.stopInput.autocomplete('destroy');
+            }
             elements.stopInput.autocomplete({
                 source: stopOptions,
                 minLength: 0,
@@ -425,11 +428,20 @@
             const direction = arr.direction !== null && arr.direction !== undefined ?
                 `<span class="badge bg-light text-dark ms-2">Suund ${arr.direction}</span>` : '';
 
+            // Show minutes for real-time data
+            const minutesText = arr.expectedMinutes !== undefined ?
+                `<span class="badge bg-info ms-2">${arr.expectedMinutes} min</span>` : '';
+            const transportIcon = arr.transport === 'tram' ? '🚃' :
+                                  arr.transport === 'trolley' ? '🚎' :
+                                  arr.transport === 'bus' ? '🚌' : '🚌';
+            const routeDisplay = arr.route ? `<span class="badge bg-primary me-2">${transportIcon} ${escapeHtml(arr.route)}</span>` : '';
+
             return `
                 <div class="arrival-item d-flex align-items-center justify-content-between py-2 ${index < arrivals.length - 1 ? 'border-bottom' : ''}">
                     <div>
-                        <span class="badge ${dateClass} me-2">${escapeHtml(arr.dateLabel)}</span>
+                        ${routeDisplay}
                         <strong class="fs-5">${escapeHtml(arr.time)}</strong>
+                        ${minutesText}
                         ${direction}
                     </div>
                     <div class="text-end">
