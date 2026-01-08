@@ -9,7 +9,7 @@ const BASE_URL = 'https://transport.tallinn.ee';
 
 // Cache for stops and routes (refresh every hour)
 let stopsCache = null;
-let routesCache = null;
+let siriIdMap = null; // Map stopId -> siriId
 let cacheTimestamp = 0;
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
@@ -17,43 +17,79 @@ const CACHE_TTL = 60 * 60 * 1000; // 1 hour
  * Fetch data from URL
  */
 function fetchData(url) {
+    console.log(`[TallinnAPI] Fetching: ${url}`);
     return new Promise((resolve, reject) => {
         https.get(url, (res) => {
+            console.log(`[TallinnAPI] Response status: ${res.statusCode}`);
             let data = '';
             res.on('data', chunk => data += chunk);
-            res.on('end', () => resolve(data));
+            res.on('end', () => {
+                console.log(`[TallinnAPI] Response length: ${data.length} bytes`);
+                resolve(data);
+            });
             res.on('error', reject);
-        }).on('error', reject);
+        }).on('error', (err) => {
+            console.error(`[TallinnAPI] Request error: ${err.message}`);
+            reject(err);
+        });
     });
 }
 
 /**
  * Parse stops.txt CSV data
  * Format: ID;SiriID;Lat;Lng;Stops;Name;Info;Street;Area;City;...
+ *
+ * There are two types of records:
+ * 1. Aggregated stops (ID starts with 'a') - no SiriID, used for display
+ * 2. Platform stops - have SiriID, used for API calls
  */
 function parseStops(data) {
     const lines = data.trim().split('\n');
     const stops = [];
+    const idToSiri = new Map();
 
     // Skip header line
     for (let i = 1; i < lines.length; i++) {
         const parts = lines[i].split(';');
-        if (parts.length >= 10) {
-            const stopIds = parts[4] ? parts[4].split(',') : [];
+        if (parts.length < 5) continue;
+
+        const id = parts[0];
+        const siriId = parts[1];
+        const lat = parseInt(parts[2]) / 100000;
+        const lng = parseInt(parts[3]) / 100000;
+        const relatedStops = parts[4] ? parts[4].split(',') : [];
+
+        // Build siriId mapping for all stops with siriId
+        if (siriId && /^\d+$/.test(siriId)) {
+            idToSiri.set(id, siriId);
+            // Also map related stops to this siriId if they don't have their own
+            for (const relId of relatedStops) {
+                if (!idToSiri.has(relId)) {
+                    idToSiri.set(relId, siriId);
+                }
+            }
+        }
+
+        // Only include stops with name (full records) for the stops list
+        if (parts.length >= 6 && parts[5]) {
             stops.push({
-                id: parts[0],
-                siriId: parts[1],
-                lat: parseInt(parts[2]) / 100000,  // Convert to decimal
-                lng: parseInt(parts[3]) / 100000,
-                stopIds: stopIds,
+                id: id,
+                siriId: siriId || null,
+                lat: lat,
+                lng: lng,
+                stopIds: relatedStops,
                 name: parts[5],
-                info: parts[6],
-                street: parts[7],
-                area: parts[8],
-                city: parts[9]
+                info: parts[6] || '',
+                street: parts[7] || '',
+                area: parts[8] || '',
+                city: parts[9] || ''
             });
         }
     }
+
+    // Store the siriId map globally
+    siriIdMap = idToSiri;
+    console.log(`[TallinnAPI] Built SiriID map with ${idToSiri.size} entries`);
 
     return stops;
 }
@@ -108,16 +144,49 @@ async function getRegions() {
 }
 
 /**
+ * Get SiriID for a stop (needed for SIRI API)
+ */
+async function getSiriId(stopId) {
+    // Ensure stops are loaded (which builds the siriIdMap)
+    if (!siriIdMap) {
+        await getStops();
+    }
+
+    // If stopId is already a numeric SiriID, use it directly
+    if (/^\d+$/.test(stopId)) {
+        return stopId;
+    }
+
+    // Look up in the map
+    return siriIdMap ? siriIdMap.get(stopId) : null;
+}
+
+/**
  * Get stop arrivals from SIRI API
  * Returns real-time arrival information
  */
 async function getArrivals(stopId) {
     try {
-        const data = await fetchData(`${BASE_URL}/siri-stop-departures.php?stopid=${encodeURIComponent(stopId)}`);
+        // Convert stopId to SiriID for the API
+        const siriId = await getSiriId(stopId);
+        if (!siriId) {
+            console.log(`[TallinnAPI] No SiriID found for stop ${stopId}`);
+            return { arrivals: [], timestamp: Date.now() };
+        }
+
+        console.log(`[TallinnAPI] getArrivals(${stopId}) -> using SiriID: ${siriId}`);
+        const url = `${BASE_URL}/siri-stop-departures.php?stopid=${encodeURIComponent(siriId)}`;
+        const data = await fetchData(url);
         const lines = data.trim().split('\n');
+
+        console.log(`[TallinnAPI] Got ${lines.length} lines`);
+        if (lines.length <= 3) {
+            console.log(`[TallinnAPI] Raw response: ${data.substring(0, 200)}`);
+        }
 
         // First line is header: Transport,RouteNum,ExpectedTimeInSeconds,ScheduleTimeInSeconds,timestamp,version
         if (lines.length <= 1) {
+            console.log(`[TallinnAPI] No arrivals data for SiriID ${siriId}`);
             return { arrivals: [], timestamp: Date.now() };
         }
 
